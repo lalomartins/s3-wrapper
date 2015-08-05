@@ -1,0 +1,69 @@
+#!/usr/bin/python3
+
+import argparse
+import os
+import subprocess
+import sys
+
+import cson
+from easydict import EasyDict as easydict
+
+S3CMD = ['s3cmd', 'sync']
+S3ARGS = [r'--rexclude=^\.']
+
+def load_config():
+  where = os.path.realpath(os.curdir)
+  while True:
+    path = os.path.join(where, '.s3.cson')
+    if os.path.exists(path):
+      config = cson.load(path)
+      config.setdefault('root', where)
+      return easydict(config)
+    else:
+      _where = os.path.dirname(where)
+      if where == _where:
+        raise RuntimeError('No .s3.cson found')
+      where = _where
+config = load_config()
+
+
+class DryRunAction(argparse.Action):
+  def __call__(self, *a, **kw):
+    S3ARGS.insert(0, '-n')
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-n', '--dry-run', action=DryRunAction,
+  nargs=0, default=argparse.SUPPRESS, help='''
+  only show what should be uploaded or downloaded but
+  don't actually do it; may still perform S3 requests to
+  get bucket listings and other information though'''.strip())
+subparsers = parser.add_subparsers()
+
+
+def push(*paths):
+  'push files to s3'
+  cmd = S3CMD + S3ARGS + [config.root + '/', 's3://' + config.bucket]
+  print(cmd)
+  subprocess.call(cmd)
+parser.set_defaults(func=push)
+parser_push = subparsers.add_parser('push', help=push.__doc__)
+parser_push.add_argument('paths', help='paths to sync (default: sync whole tree)', nargs='*')
+parser_push.set_defaults(func=push)
+
+
+def pull(*paths):
+  'get files from s3'
+  cmd = S3CMD + S3ARGS + ['s3://' + config.bucket, config.root]
+  subprocess.call(cmd)
+parser_pull = subparsers.add_parser('pull', help=pull.__doc__)
+parser_pull.add_argument('paths', help='paths to sync (default: sync whole tree)', nargs='*')
+parser_pull.set_defaults(func=pull)
+
+
+if __name__ == '__main__':
+  args = parser.parse_args()
+  if 'paths' in args:
+    args.func(*args.paths)
+  else:
+    args.func()
