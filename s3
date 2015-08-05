@@ -43,10 +43,12 @@ subparsers = parser.add_subparsers()
 
 def push(*paths):
   'push files to s3'
-  cmd = S3CMD + S3ARGS + [config.root + '/', 's3://' + config.bucket]
-  print(cmd)
+  if paths:
+    paths = list(paths)
+  else:
+    paths = [config.root + '/']
+  cmd = S3CMD + S3ARGS + paths + ['s3://' + config.bucket]
   subprocess.call(cmd)
-parser.set_defaults(func=push)
 parser_push = subparsers.add_parser('push', help=push.__doc__)
 parser_push.add_argument('paths', help='paths to sync (default: sync whole tree)', nargs='*')
 parser_push.set_defaults(func=push)
@@ -54,7 +56,11 @@ parser_push.set_defaults(func=push)
 
 def pull(*paths):
   'get files from s3'
-  cmd = S3CMD + S3ARGS + ['s3://' + config.bucket, config.root]
+  if paths:
+    remotes = ['s3://{}/{}'.format(config.bucket, path) for path in paths]
+  else:
+    remotes = ['s3://' + config.bucket]
+  cmd = S3CMD + S3ARGS + remotes + [config.root]
   subprocess.call(cmd)
 parser_pull = subparsers.add_parser('pull', help=pull.__doc__)
 parser_pull.add_argument('paths', help='paths to sync (default: sync whole tree)', nargs='*')
@@ -63,6 +69,8 @@ parser_pull.set_defaults(func=pull)
 
 if __name__ == '__main__':
   args = parser.parse_args()
+  if 'func' not in args:
+    args.func = push
   if 'paths' in args:
     args.func(*args.paths)
   else:
