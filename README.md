@@ -1,3 +1,7 @@
+# Abandoned
+
+There are now many choices of command-line s3 interfaces, including one official from Amazon.
+
 # s3-wrapper
 Simple command line wrapper for http://s3tools.org/s3cmd
 
